@@ -1,0 +1,37 @@
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": [
+				"secretsmanager:GetSecretValue"
+			],
+			"Resource": "arn:aws:secretsmanager:ap-northeast-1:132496748061:secret:iota-sftp-creds-*"
+		},
+		{
+			"Effect": "Allow",
+			"Action": [
+				"s3:GetObject",
+				"s3:PutObject",
+				"s3:DeleteObject"
+			],
+			"Resource": "arn:aws:s3:::aig-travel-seperation/*"
+		},
+		{
+			"Effect": "Allow",
+			"Action": [
+				"sns:Publish"
+			],
+			"Resource": "arn:aws:sns:ap-northeast-1:132496748061:sftp-failure-alerts"
+		},
+		{
+			"Effect": "Allow",
+			"Action": [
+				"logs:CreateLogGroup",
+				"logs:CreateLogStream",
+				"logs:PutLogEvents"
+			],
+			"Resource": "arn:aws:logs:ap-northeast-1:132496748061:log-group:s3-windows-iota:*"
+		}
+	]
+}
