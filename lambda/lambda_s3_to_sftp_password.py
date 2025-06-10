@@ -43,13 +43,15 @@ EMAIL_ALERTS = {
 def get_jst_now():
     return datetime.now(timezone.utc) + timedelta(hours=9)
 
-def setup_logger():
+def setup_logger(context=None):
     now = get_jst_now()
-    path = f"/tmp/lambda-log-{now.strftime('%Y%m%d-%H%M%S')}.log"
+    req_id = getattr(context, 'aws_request_id', None)
+    if req_id:
+        path = f"/tmp/lambda-log-{now.strftime('%Y%m%d-%H%M%S')}-{req_id}.log"
+    else:
+        path = f"/tmp/lambda-log-{now.strftime('%Y%m%d-%H%M%S')}.log"
     open(path, 'a').close()
     return path
-
-log_path = setup_logger()
 
 def log_to_file(msg):
     ts = get_jst_now().isoformat()
@@ -99,6 +101,9 @@ def connect_sftp(secret):
     return paramiko.SFTPClient.from_transport(t), t
 
 def lambda_handler(event, context):
+    global log_path
+    log_path = setup_logger(context)  # Per-invocation unique log
+
     now = get_jst_now()
     s3 = boto3.client("s3")
     secrets = boto3.client("secretsmanager")
@@ -109,22 +114,17 @@ def lambda_handler(event, context):
             fname = os.path.basename(key).strip()
             params = {"fname": fname, "key": key, "now": now.strftime('%Y-%m-%d %H:%M:%S')}
 
-            # --- Only process/alert on user uploads to landing folder ---
-            if not key.startswith(LANDING_PREFIX):
-                log_to_file(f"Skipping non-landing folder event: {key}")
-                continue
-
-            # --- Type & filename checks (E-15/E-13 only in landing folder) ---
+            # --- File extension and filename check (one block) ---
             if not fname.lower().endswith(".dat"):
                 log_to_file(f"Skipped non-.dat file: {fname}")
                 send_sns("E-15", params)
                 continue
-
             if fname.lower() != "iota.dat":
                 log_to_file(f"Skipped non-iota file: {fname}")
                 send_sns("E-13", params)
                 continue
 
+            # --- Download file ---
             local_file = f"/tmp/{fname}"
             try:
                 s3.download_file(S3_BUCKET, key, local_file)
@@ -248,6 +248,7 @@ def lambda_handler(event, context):
                     try:
                         r_size = sftp.stat(remote_path).st_size
                         l_size = os.path.getsize(merged_out if merge_flag else local_file)
+                        log_to_file(f"Integrity check: remote={r_size}, local={l_size}")
                         if r_size != l_size:
                             send_sns("E-12", {**params})
                             log_to_file(f"Size mismatch: remote={r_size}, local={l_size}")
@@ -273,7 +274,7 @@ def lambda_handler(event, context):
                         try:
                             s3.upload_file(merged_out, S3_BUCKET, merged_key)
                             sftp.put(merged_out, os.path.join(secret["archive_path"], f"{now.strftime('%Y%m%d%H%M%S')}_iotaAfterMerge.dat").replace("\\", "/"))
-                            # Do NOT send E-15 here! Only for wrong file types in landing folder!
+                            log_to_file(f"Staging merge archived as: {merged_key}")
                         except Exception as ex:
                             send_sns("E-17", {**params, "error": str(ex), "archive_path": archive_path, "s3_archive_path": merged_key})
                             log_to_file(f"Merged file archival failed: {ex}")
@@ -288,8 +289,12 @@ def lambda_handler(event, context):
                             try:
                                 merge_files([staging_file, local_file], merged_out)
                                 s3.upload_file(merged_out, S3_BUCKET, staging_key)
-                                send_sns("E-6", {**params, "staging_key": staging_key})   # Staging merge notification
-                                send_sns("E-8S", params)                                 # Staging merge complete
+                                # Archive merged file in S3
+                                merged_key = f"{ARCHIVE_PREFIX}{now.strftime('%Y-%m-%d')}/{now.strftime('%Y%m%d%H%M%S')}_iotaAfterMerge.dat"
+                                s3.upload_file(merged_out, S3_BUCKET, merged_key)
+                                log_to_file(f"Staging merge archived as: {merged_key}")
+                                send_sns("E-6", {**params, "staging_key": staging_key})
+                                send_sns("E-8S", params)
                                 log_to_file("Updated staging with merged file.")
                             except Exception as ex:
                                 send_sns("E-11", {**params, "error": str(ex), "staging_key": staging_key})
@@ -302,16 +307,18 @@ def lambda_handler(event, context):
                     except Exception as ex:
                         log_to_file(f"Fallback staging failed: {ex}")
                         send_sns("E-17", {**params, "error": str(ex), "s3_archive_path": s3_staging_path, "archive_path": ""})
-                # Remove from landing after all logic
+
                 s3.delete_object(Bucket=S3_BUCKET, Key=key)
                 log_to_file("Cleaned up landing file.")
 
             except Exception as e:
                 send_sns("E-13", {**params, "error": str(e)})
                 log_to_file(f"Lambda failure: {e}")
+
     except Exception as e:
         send_sns("E-13", {"error": str(e)})
         log_to_file(f"Lambda global failure: {e}")
+
     finally:
         try:
             log_key = f"{LOG_PREFIX}{now.strftime('%Y-%m-%d')}/{now.strftime('%H%M%S')}_log.txt"
