@@ -13,13 +13,14 @@ LANDING_PREFIX = os.environ.get("LANDING_PREFIX", "aig-iota-landing-folder/")
 STAGING_PREFIX = os.environ.get("STAGING_PREFIX", "staging/")
 ARCHIVE_PREFIX = os.environ.get("ARCHIVE_PREFIX", "archived/")
 LOG_PREFIX = os.environ.get("LOG_PREFIX", "logs/")
+ZERO_BYTE_PREFIX = os.environ.get("ZERO_BYTE_PREFIX", "zero-byte/")
 
-# --- EMAIL SCENARIOS --- #
 EMAIL_ALERTS = {
     "E-0": (
         "Zero-byte File Detected",
-        "A zero-byte iota.dat file was detected and moved to staging.\n\n"
+        "A zero-byte iota.dat file was detected and moved to a dedicated zero-byte folder.\n\n"
         "File: {fname}\n"
+        "Zero-byte file path: {zero_byte_key}\n"
         "No transfer or merge performed. Please investigate why an empty file was uploaded."
     ),
     "E-1": ("File Incoming", "File received from Inspire S3.\n\nFilename: {fname}"),
@@ -102,7 +103,7 @@ def log_to_file(msg):
 
 def send_sns(code, params=None):
     params = params or {}
-    template_keys = ["fname", "error", "s3_archive_path", "archive_path", "remote_path", "staging_key", "key", "now", "s3_staging_path", "log_key", "S3_BUCKET"]
+    template_keys = ["fname", "error", "s3_archive_path", "archive_path", "remote_path", "staging_key", "key", "now", "s3_staging_path", "log_key", "S3_BUCKET", "zero_byte_key"]
     for k in template_keys:
         params.setdefault(k, "-")
     params["S3_BUCKET"] = S3_BUCKET
@@ -165,14 +166,12 @@ def lambda_handler(event, context):
             # --- File extension check (E-15) ---
             if not fname.lower().endswith(".dat"):
                 log_to_file(f"Rejected non-.dat file: {fname}")
-                # Move to staging
                 try:
                     s3.download_file(S3_BUCKET, key, local_file)
                     s3.upload_file(local_file, S3_BUCKET, staging_key)
                     log_to_file(f"Moved non-.dat file to staging: {staging_key}")
                 except Exception as ex:
                     log_to_file(f"Failed to move non-.dat file to staging: {ex}")
-                # Delete from landing
                 try:
                     s3.delete_object(Bucket=S3_BUCKET, Key=key)
                     log_to_file(f"Deleted {fname} from landing after moving to staging.")
@@ -184,14 +183,12 @@ def lambda_handler(event, context):
             # --- Strict filename check (E-13) ---
             if fname.lower() != "iota.dat":
                 log_to_file(f"Rejected file with invalid name: {fname}")
-                # Move to staging
                 try:
                     s3.download_file(S3_BUCKET, key, local_file)
                     s3.upload_file(local_file, S3_BUCKET, staging_key)
                     log_to_file(f"Moved invalid .dat file to staging: {staging_key}")
                 except Exception as ex:
                     log_to_file(f"Failed to move invalid .dat file to staging: {ex}")
-                # Delete from landing
                 try:
                     s3.delete_object(Bucket=S3_BUCKET, Key=key)
                     log_to_file(f"Deleted {fname} from landing after moving to staging.")
@@ -208,14 +205,16 @@ def lambda_handler(event, context):
                 send_sns("E-17S3", {**params, "error": str(ex), "s3_archive_path": key, "archive_path": ""})
                 continue
 
-            # --- Zero-byte check (NEW ENHANCEMENT) ---
+            # --- Zero-byte check (dedicated folder, never overwrites staging) ---
             if os.path.getsize(local_file) == 0:
+                zero_byte_key = f"{ZERO_BYTE_PREFIX}{now.strftime('%Y-%m-%d')}/{now.strftime('%Y%m%d%H%M%S')}_iota.dat"
                 try:
-                    s3.upload_file(local_file, S3_BUCKET, staging_key)
-                    log_to_file("Zero-byte file detected. Moved to staging.")
+                    s3.upload_file(local_file, S3_BUCKET, zero_byte_key)
+                    params["zero_byte_key"] = zero_byte_key
+                    log_to_file(f"Zero-byte file detected. Moved to: {zero_byte_key}")
                     s3.delete_object(Bucket=S3_BUCKET, Key=key)
                 except Exception as ex:
-                    log_to_file(f"Zero-byte move to staging failed: {ex}")
+                    log_to_file(f"Zero-byte move to dedicated folder failed: {ex}")
                 send_sns("E-0", params)
                 continue
 
@@ -276,7 +275,7 @@ def lambda_handler(event, context):
                 iota_available = False
 
             merge_flag = False
-            merge_type = None  # "3way", "staging", "iota", or None
+            merge_type = None
             try:
                 if sftp:
                     if staging_exists and iota_exists:
@@ -333,7 +332,6 @@ def lambda_handler(event, context):
                         log_to_file(f"IOTA upload failed: {ex}")
                         continue
 
-                    # --- Size Integrity Check and Success Notification ---
                     try:
                         r_size = sftp.stat(remote_path).st_size
                         l_size = os.path.getsize(merged_out if merge_flag else local_file)
@@ -357,7 +355,6 @@ def lambda_handler(event, context):
                     except Exception as ex:
                         log_to_file(f"Size check error: {ex}")
 
-                    # Archive merged for any merge
                     if merge_flag:
                         merged_key = f"{ARCHIVE_PREFIX}{now.strftime('%Y-%m-%d')}/{now.strftime('%Y%m%d%H%M%S')}_iotaAfterMerge.dat"
                         try:
@@ -368,7 +365,6 @@ def lambda_handler(event, context):
                             log_to_file(f"Staging merge archived as: {merged_key}")
                             log_to_file(f"Merged file archived to IOTA as: {iota_archive_path}")
                         except Exception as ex:
-                            # Try to distinguish S3 archive vs IOTA archive
                             if "s3" in str(ex).lower():
                                 send_sns("E-17S3", {**params, "error": str(ex), "s3_archive_path": merged_key})
                             else:
@@ -380,13 +376,11 @@ def lambda_handler(event, context):
                     sftp.close(); t.close(); log_to_file("SFTP closed.")
 
                 else:
-                    # --- Fallback Logic (IOTA unreachable) ---
                     try:
                         if staging_exists:
                             try:
                                 merge_files([staging_file, local_file], merged_out)
                                 s3.upload_file(merged_out, S3_BUCKET, staging_key_iota)
-                                # Archive merged file in S3
                                 merged_key = f"{ARCHIVE_PREFIX}{now.strftime('%Y-%m-%d')}/{now.strftime('%Y%m%d%H%M%S')}_iotaAfterMerge.dat"
                                 s3.upload_file(merged_out, S3_BUCKET, merged_key)
                                 log_to_file(f"Staging merge archived as: {merged_key}")
