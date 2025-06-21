@@ -1,86 +1,57 @@
-# 🚀 S3 to SFTP Transfer using AWS Lambda (Option 1: Password-Based)
+# S3-to-IOTA Lambda Solution
 
-This project enables **automated transfer of `.dat` files from an S3 bucket to a remote Windows SFTP server**, using AWS Lambda (Python 3.11) with **Paramiko** and **Watchtower**. It also includes robust error handling, weekend alerts, and full CloudWatch logging.
-
----
-
-## ✅ Features
-
-- 🔐 Secure SFTP transfer using credentials from AWS Secrets Manager
-- 📤 Uploads file to both `/incoming` and `/archive` folders on the SFTP server
-- 🧊 Archives the file in S3 under date-wise folders (`archived/YYYY-MM-DD/`)
-- 📅 Triggers only on `.dat` files
-- 📛 Weekend uploads trigger a separate SNS alert
-- 📦 ZIP Lambda Layer built with Docker (Paramiko + Watchtower)
-- 📊 All logs pushed to a **single CloudWatch Log Group** per run (`s3-windows-iota`)
-- 📬 SNS alerts for success and failure
-- 🧽 Lifecycle policy (optional) to clean old S3 archives
+A production-grade AWS Lambda for secure, auditable file transfer from AWS S3 to an IOTA (Windows) SFTP backend, featuring robust error handling, zero-downtime staging/merge logic, and fine-grained alerting.
 
 ---
 
-## 🧾 Folder Structure
-s3-to-sftp-lambda-option1/
-│
-├── lambda/
-│   ├── lambda_function.py         # Final working Lambda function
-│   └── requirements.txt           # Optional: for reference or testing
-│
-├── lambda_layer/
-│   ├── Dockerfile                 # Dockerfile to build Paramiko+Watchtower layer
-│   └── build.sh                   # Shell script to generate zip from Docker
-│
-├── iam/
-│   └── iam-policy.json            # IAM policy required for Lambda execution
-│
-├── docs/
-│   └── README.md                  # You’re reading it 😄
-│
-└── utils/
-└── test_event.json            # Sample S3 trigger event for testing
+## 🚀 Overview
+
+This Lambda function automates the transfer of files from an S3 bucket to a Windows (IOTA) SFTP server, meeting enterprise-grade compliance and reliability requirements. It is **battle-tested for:**
+- SFTP downtime handling (auto-staging in S3)
+- Multi-way merge (3-way, normal, staging)
+- Filename and extension enforcement
+- S3 archiving with 1-month lifecycle support
+- 18+ detailed SNS/email alert scenarios
+- Per-invocation S3 logging
 
 ---
 
-## ⚙️ Environment Variables (Lambda)
+## ✨ Features
 
-| Variable       | Description                                |
-|----------------|--------------------------------------------|
-| `S3_BUCKET`     | Your input S3 bucket name                  |
-| `S3_PREFIX`     | S3 folder prefix to monitor (`incoming/`) |
-| `SECRET_NAME`   | Secrets Manager name with SFTP creds      |
-| `SNS_TOPIC`     | SNS topic ARN for alerts                  |
-| `WEEKEND_ALERT` | `true` or `false` to enable weekend alert |
+- **Strict file validation** (`iota.dat` only, zero-byte allowed)
+- **Staging fallback:** If IOTA is down, file is moved to `/staging/` in S3
+- **Merge engine:** Handles 3-way, normal, and staging merges (binary-safe)
+- **S3 archival:** All incoming and merged files are archived to `/archived/` (supports S3 lifecycle)
+- **Detailed alerts:** Covers file arrival, transfer, merge, staging, failures, and zero-byte edge cases
+- **UTF-8 safe**, supports Japanese filenames/content
+- **Self-contained logging:** All steps logged to `/logs/` in S3; log upload is itself monitored
+- **Environment-driven:** No code changes needed for re-deployment or config tweaks
 
 ---
 
-## 🔑 Example Secret Format (AWS Secrets Manager)
+## 🏗️ Architecture
 
-```json
-{
-  "host": "13.113.xxx.xxx",
-  "port": 22,
-  "username": "windows-user",
-  "password": "supersecret123",
-  "remote_path": "/incoming",
-  "archive_path": "/archive"
-}
+```plaintext
+[S3: landing folder]
+      |
+      | (Lambda event)
+      v
+[AWS Lambda: s3-to-iota]
+      |
+  +-------------------+
+  |   Validation      |
+  |   S3 Archive      |
+  |   Merge Logic     |
+  |   Staging Logic   |
+  |   SNS Alerts      |
+  +-------------------+
+      |
+      v
+[SFTP: IOTA server] <--- (fallback: S3 /staging/)
 
-📦 Lambda Layer (Build via Docker)
+Landing: Files dropped to /aig-iota-landing-folder/ trigger the Lambda.
+Archival: Every processed file is saved under /archived/YYYY-MM-DD/.
+Logs: All Lambda runs create /logs/YYYY-MM-DD/ files.
+Fallback: If SFTP fails, file is staged under /staging/.
+Zero-byte: Handled per business policy (allowed & archived, warning in logs).
 
-Inside lambda_layer/:
-# Build and package layer
-./build.sh
-
-✅ IAM Permissions
-
-See cloudformation/iam-policy.json. It covers:
-	•	SecretsManager
-	•	S3 (Get, Put, Delete)
-	•	SNS (Publish)
-	•	CloudWatch Logs
-
-🧹 Optional Enhancements
-	•	Auto-delete S3 archives older than 30 days (via S3 lifecycle rule)
-
-🙌 Credits
-
-Crafted with ❤️ by Harsha Reddy Gogireddy — powered by AWS, Paramiko & Docker.
