@@ -20,8 +20,6 @@ It includes production-ready error handling, file integrity validation, SNS/emai
 ---
 
 ## Architecture
-
-
                     +-----------------------------+
                     |       AWS S3 Bucket         |
                     |  (aig-iota-landing-folder/) |
