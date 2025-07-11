@@ -34,8 +34,7 @@ It includes production-ready error handling, file integrity validation, SNS/emai
                     +-------------+---------------+
                                   |
        +--------------------------+--------------------------+
-       |                          |                          |
-       v                          v                          v
+       |                          |                          |       v                          v                          v
 +---------------+      +------------------+      +------------------+
 |    Archive    |      |      Staging     |      |      Logs        |
 |   (archived/) |      |   (staging/)     |      |    (logs/)       |
