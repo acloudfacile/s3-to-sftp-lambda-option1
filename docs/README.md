@@ -40,7 +40,6 @@ It includes production-ready error handling, file integrity validation, SNS/emai
 |    Archive    |      |      Staging     |      |      Logs        |
 |   (archived/) |      |   (staging/)     |      |    (logs/)       |
 +---------------+      +------------------+      +------------------+
-
                                   |
                              [SFTP Upload]
                                   |
