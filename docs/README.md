@@ -20,29 +20,50 @@ It includes production-ready error handling, file integrity validation, SNS/emai
 ---
 
 ## Architecture
-+———————+
-|    AWS S3 Bucket    | <— (landing: aig-iota-landing-folder/)
-+———————+
-|
-(S3 Event trigger)
-v
-+———————+      +––––––––+
-|    Lambda (Main)    |—–>| IOTA Windows   |
-|  s3-to-iota-lambda  | SFTP |   Server       |
-+———————+      +––––––––+
-|
-(SNS/Email alerts, logs, archive, staging)
-|
-+———————+
-|    S3 Bucket        |
-|   (archived/, logs/, staging/) |
-+———————+
-|
-+———————+
-| Watchtower Lambda   |
-| (scheduled S3 file  |
-|  presence checker)  |
-+———————+
+
+
+                    +-----------------------------+
+                    |       AWS S3 Bucket         |
+                    |  (aig-iota-landing-folder/) |
+                    +-------------+---------------+
+                                  |
+                        [S3 Event Trigger]
+                                  |
+                                  v
+                    +-----------------------------+
+                    |        Lambda (Main)        |
+                    |    s3-to-iota-lambda        |
+                    +-------------+---------------+
+                                  |
+       +--------------------------+--------------------------+
+       |                          |                          |
+       v                          v                          v
++---------------+      +------------------+      +------------------+
+|    Archive    |      |      Staging     |      |      Logs        |
+|   (archived/) |      |   (staging/)     |      |    (logs/)       |
++---------------+      +------------------+      +------------------+
+
+                                  |
+                             [SFTP Upload]
+                                  |
+                                  v
+                    +-----------------------------+
+                    |      IOTA Windows Server    |
+                    |            (SFTP)           |
+                    +-----------------------------+
+
+                                  |
+                             [SNS / Email]
+                                  v
+                         (Notifications/Alerts)
+
+
+                    +-----------------------------+
+                    |   Watchtower Lambda         |
+                    | (Scheduled S3 File Checker) |
+                    +-----------------------------+
+                                  ^
+                              [EventBridge]
 ---
 
 ## Usage
