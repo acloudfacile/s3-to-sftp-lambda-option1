@@ -20,40 +20,26 @@ It includes production-ready error handling, file integrity validation, SNS/emai
 ---
 
 ## Architecture
-                +-----------------------------+
-                |       AWS S3 Bucket         |
-                |  (aig-iota-landing-folder/) |
-                +-------------+---------------+
-                              |
-                      [S3 Event Trigger]
-                              |
-                              v
-                +-----------------------------+
-                |        Lambda (Main)        |
-                |    s3-to-iota-lambda        |
-                +-------------+---------------+
-                              |
-        +---------+-----------+-----------+---------+
-        |         |                       |         |
-        v         v                       v         v
-   +---------+ +---------+           +---------+ +---------+
-   |Archive  | |Staging  |           |  Logs   | | Watchtower Lambda |
-   |archived/| |staging/ |           | logs/   | | (Scheduled S3 Check) |
-   +---------+ +---------+           +---------+ +---------+
-        |         |                       |         |
-        +---------+-----------+-----------+---------+
-                              |
-                       [SFTP Upload]
-                              |
-                              v
-                +-----------------------------+
-                |     IOTA Windows Server     |
-                |           (SFTP)            |
-                +-----------------------------+
-                              |
-                       [SNS / Email]
-                              v
-                   (Notifications/Alerts)
+mermaid
+flowchart TD
+    S3[AWS S3 Bucket<br/>(aig-iota-landing-folder/)]
+    S3Trigger([S3 Event Trigger])
+    Lambda[Lambda (Main)<br/>s3-to-iota-lambda]
+    Archive[Archive<br/>(archived/)]
+    Staging[Staging<br/>(staging/)]
+    Logs[Logs<br/>(logs/)]
+    Watchtower[Watchtower Lambda<br/>(Scheduled S3 Check)]
+    SFTP[SFTP Upload]
+    IOTA[IOTA Windows Server<br/>(SFTP)]
+    SNS[SNS / Email<br/>(Notifications/Alerts)]
+    EventBridge([EventBridge])
+
+    S3 --> S3Trigger --> Lambda
+    Lambda --> Archive
+    Lambda --> Staging
+    Lambda --> Logs
+    Lambda --> SFTP --> IOTA --> SNS
+    EventBridge --> Watchtower
 ---
 
 ## Usage
