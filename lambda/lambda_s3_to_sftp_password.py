@@ -16,44 +16,44 @@ LOG_PREFIX = os.environ.get("LOG_PREFIX", "logs/")
 
 # === EMAIL NOTIFICATIONS / ALERT SCENARIOS ===
 EMAIL_ALERTS = {
-    "E-1": ("File Incoming", "File received from Inspire S3.\n\nFilename: {fname}"),
-    "E-2": ("Invalid File", "Rejected file. Only 'iota.dat' is allowed.\n\nFilename: {fname}"),
-    "E-3": ("File Archived", "The new file has been archived to S3.\n\nFilename: {fname}"),
-    "E-4": ("IOTA Unreachable", "Unable to connect to Windows (IOTA) server. Fallback triggered.\n\nFile: {fname}"),
+    "E-1": ("[Finatext] File Incoming: {fname}", "A new file has been received from Inspire S3 and detected in the landing folder.\n\nFilename: {fname}"),
+    "E-2": ("[AIG] Invalid File Detected: {fname}", "A file has been rejected because only 'iota.dat' is allowed for processing.\nFilename: {fname}"),
+    "E-3": ("[AIG] File Archived: {fname}", "The file has been successfully archived to S3.\nFilename: {fname}"),
+    "E-4": ("[AIG] IOTA Server Unreachable – Fallback Initiated", "Unable to connect to the IOTA server. Fallback procedure has been triggered for file: {fname}"),
     "E-5": (
-        "Merge Alert: Existing File Found on IOTA - Merge About to Start",
+        "[AIG] Merge Alert: Existing File Found on IOTA - Merge About to Start",
         "A merge operation will be performed between:\n- New File from S3: {fname}\n- Existing File on IOTA Server: {remote_path}\n\nMerge will begin shortly."
     ),
     "E-6": (
-        "Staging Merge Performed",
+        "[AIG] Staging Merge will be Performed",
         "Staging file merge operation was triggered as an earlier file was not sent due to server unavailability.\n\n"
         "Staging File: {staging_key}\nNew File: {key}\nMerged File will be transferred to IOTA server if server is available.\nFile: {fname}"
     ),
     "E-7": (
-        "Merge Failure for File 'iota.dat'",
-        "Merge operation failed during standard processing (non-staging flow).\n\n"
+        "[AIG] Merge Failure: iota.dat",
+        "The Merge operation failed during standard processing (non-staging flow).\n\n"
         "Details:\n- Source File (S3): s3://{S3_BUCKET}/{key}\n- Existing File (Remote): {remote_path}\nError: {error}\n\n"
         "Next Steps:\n- Please manually verify if the merge is required.\n- Consider retrieving logs from S3 (log folder: s3://{S3_BUCKET}/{log_key})"
     ),
-    "E-8": ("File Transfer Complete", "File transfer completed and transferred to IOTA.\n\nFile: {fname}"),
-    "E-8M": ("Merge Complete", "Merge completed and transferred to IOTA.\n\nFile: {fname}"),
-    "E-8T": ("3-Way Merge Complete", "3-way merge completed and transferred to IOTA.\n\nFile: {fname}"),
-    "E-8S": ("Staging Merge Complete", "Staging merge completed and transferred to IOTA.\n\nFile: {fname}"),
+    "E-8": ("[AIG] File Transfer Complete: {fname}", "The file has been successfully transferred to IOTA.\nFilename: {fname}"),
+    "E-8M": ("[AIG] Merge Complete: {fname}", "Merge completed and transferred to IOTA.\nFilename: {fname}"),
+    "E-8T": ("[AIG] 3-Way Merge Complete: {fname}", "3-way merge completed between new_file, S3_staging_file and IOTA_server_file. Successfully transferred to IOTA.\n\nFile: {fname}"),
+    "E-8S": ("[AIG] Staging Merge Complete: {fname}", "Staging merge completed and transferred to IOTA.\n\nFile: {fname}"),
     "E-8SF": (
-        "Staging Merge Complete – Fallback",
+        "[AIG] Staging Merge Complete – Fallback",
         "Staging merge completed, but IOTA server was unavailable.\n"
         "Merged file remains in S3 staging until server is reachable.\nFile: {fname}"
     ),
     "E-9": (
-        "Fallback: File moved to staging",
-        "Unable to reach IOTA backend server. File moved to Staging folder:\n{s3_staging_path}\nFile: {fname}"
+        "[AIG] Fallback: File Moved to Staging",
+        "Unable to reach IOTA backend server. File has been securely stored in the staging folder:\n{s3_staging_path}\nFile: {fname}"
     ),
     "E-10": (
-        "Fallback: New file moved to staging",
+        "[AIG] Fallback: New File Moved to Staging",
         "Unable to reach IOTA backend server. New file moved to Staging folder:\n{s3_staging_path}\nFile: {fname}"
     ),
     "E-11": (
-        "Staging Merge Failure for File 'iota.dat'",
+        "[AIG] Staging Merge Failure: iota.dat",
         "The merge operation from the staging folder failed due to an exception.\n\n"
         "Details:\n- Staging File: s3://{S3_BUCKET}/{staging_key}\n- New File: s3://{S3_BUCKET}/{key}\n"
         "Merge operation could not be completed.\n"
@@ -61,36 +61,36 @@ EMAIL_ALERTS = {
         "Error: {error}\n\n"
         "Next Steps:\n- Please check the staging and incoming folders manually.\n- Review S3 logs in: s3://{S3_BUCKET}/{log_key}"
     ),
-    "E-12": ("File Size Mismatch", "File size mismatch after transfer to IOTA. Manual check required.\nFile: {fname}"),
+    "E-12": ("[AIG] File Size Mismatch: {fname}", "Manual review required due to size mismatch after transfer to IOTA.\nFilename: {fname}"),
     "E-13": (
-        "Invalid File Name Received",
+        "[AIG] Invalid File Name Received: {fname}",
         "File {fname} does not match expected file name \"iota.dat\". File has been moved to staging and will not be processed.\nTimestamp: {now} JST"
     ),
-    "E-14": ("IOTA Archival Complete", "File also archived to IOTA archive folder.\n\nArchive Path: {archive_path}\nFile: {fname}"),
+    "E-14": ("[AIG] IOTA Archival Complete: {fname}", "File also archived to IOTA archive folder.\n\nArchive Path: {archive_path}\nFile: {fname}"),
     "E-15": (
-        "Unrecognized File Type in S3 Bucket",
+        "[AIG] Unrecognized File Type: {fname}",
         "A file was uploaded that does not match the required '.dat' extension.\n\nFile name: {fname}\n\n"
         "This file has been moved to staging and ignored (not transferred to IOTA). Please ensure only '.dat' files are moved to the landing folder."
     ),
     "E-16": (
-        "File Read Failure Detected For Existing iota.dat",
+        "[AIG] File Read Failure Detected For Existing iota.dat",
         "The existing file(iota.dat) in the remote IOTA server landing path is either corrupted or unreadable.\n"
         "Merge aborted. The new file will remain in Staging Folder in AWS S3.\nFile: {fname}\nRemote path: {remote_path}"
     ),
     "E-17ARCH": (
-        "IOTA Archive Failure – Main delivery succeeded",
+        "[AIG] IOTA Archive Failure (Delivery Succeeded): {fname}",
         "The iota.dat file was delivered to IOTA Download folder, but archival to archive folder failed.\n\n"
         "Error: {error}\nDownload Path: {remote_path}\nArchive Path: {archive_path}\nFile: {fname}\n"
         "No recovery needed. File is available for downstream systems."
     ),
     "E-17S3": (
-        "S3 Archive Failure – Main delivery succeeded",
+        "[AIG] S3 Archive Failure (Delivery Succeeded): {fname}",
         "The iotaAfterMerge.dat file was delivered to IOTA, but S3 archive failed.\n\n"
         "Error: {error}\nS3 Archive Path: {s3_archive_path}\nFile: {fname}\n"
         "No recovery needed. File is available for downstream systems."
     ),
     "E-LOG": (
-        "Log Upload Failure",
+        "[AIG] Log Upload Failure",
         "The log file failed to upload to S3.\n\nError: {error}\nLog Path: {log_key}\n"
     ),
 }
@@ -115,7 +115,10 @@ def log_to_file(msg):
 
 def send_sns(code, params=None):
     params = params or {}
-    template_keys = ["fname", "error", "s3_archive_path", "archive_path", "remote_path", "staging_key", "key", "now", "s3_staging_path", "log_key", "S3_BUCKET"]
+    template_keys = [
+        "fname", "error", "s3_archive_path", "archive_path", "remote_path", "staging_key", "key",
+        "now", "s3_staging_path", "log_key", "S3_BUCKET", "staging_file_path", "iota_file_path", "new_file_path"
+    ]
     for k in template_keys:
         params.setdefault(k, "-")
     params["S3_BUCKET"] = S3_BUCKET
@@ -159,6 +162,7 @@ def connect_sftp(secret):
 def lambda_handler(event, context):
     global log_path
     log_path = setup_logger(context)
+    log_to_file("Lambda function execution started.")
     now = get_jst_now()
     s3 = boto3.client("s3")
     secrets = boto3.client("secretsmanager")
@@ -256,7 +260,7 @@ def lambda_handler(event, context):
             try:
                 s3.download_file(S3_BUCKET, staging_key_iota, staging_file)
                 staging_exists = True
-                log_to_file("Staging file exists.")
+                log_to_file(f"Staging file exists: {staging_key_iota}")
             except Exception:
                 log_to_file("No staging file found.")
 
@@ -268,9 +272,9 @@ def lambda_handler(event, context):
                 try:
                     sftp.get(remote_path, iota_file)
                     iota_exists = True
-                    log_to_file("IOTA file exists for merge.")
+                    log_to_file(f"IOTA file exists for merge: {remote_path}")
                 except Exception as ex:
-                    log_to_file(f"IOTA file not found: {ex}")
+                    log_to_file("IOTA file not found")
                     if "corrupt" in str(ex).lower() or "read" in str(ex).lower():
                         send_sns("E-16", {**params, "remote_path": remote_path})
 
@@ -285,7 +289,13 @@ def lambda_handler(event, context):
             try:
                 if sftp:
                     if staging_exists and iota_exists:
+                        params.update({
+                            "staging_file_path": staging_file,
+                            "iota_file_path": iota_file,
+                            "new_file_path": local_file
+                        })
                         send_sns("E-5", {**params, "remote_path": remote_path, "staging_key": staging_key_iota})
+                        log_to_file(f"Performing 3-way merge: staging_file={staging_file}, iota_file={iota_file}, new_file={local_file}")
                         try:
                             merge_files([staging_file, iota_file, local_file], merged_out)
                             merge_flag = True
@@ -299,6 +309,7 @@ def lambda_handler(event, context):
 
                     elif staging_exists:
                         send_sns("E-6", {**params, "staging_key": staging_key_iota})
+                        log_to_file(f"Performing staging merge: staging_file={staging_file}, new_file={local_file}")
                         try:
                             merge_files([staging_file, local_file], merged_out)
                             merge_flag = True
@@ -312,6 +323,7 @@ def lambda_handler(event, context):
 
                     elif iota_exists:
                         send_sns("E-5", {**params, "remote_path": remote_path})
+                        log_to_file(f"Performing IOTA merge: iota_file={iota_file}, new_file={local_file}")
                         try:
                             merge_files([iota_file, local_file], merged_out)
                             merge_flag = True
@@ -334,7 +346,7 @@ def lambda_handler(event, context):
                     # Deliver merged (or original) to IOTA landing
                     try:
                         sftp.put(merged_out if merge_flag else local_file, remote_path)
-                        log_to_file("Uploaded to IOTA.")
+                        log_to_file(f"Uploaded to IOTA: {remote_path}")
                     except Exception as ex:
                         send_sns("E-17ARCH", {**params, "error": str(ex), "archive_path": remote_path, "remote_path": remote_path})
                         log_to_file(f"IOTA upload failed: {ex}")
@@ -423,6 +435,7 @@ def lambda_handler(event, context):
 
     finally:
         # Always upload Lambda log file to S3 at end of invocation
+        log_to_file("Lambda function execution completed.")
         try:
             boto3.client("s3").upload_file(log_path, S3_BUCKET, log_key)
         except Exception as e:
