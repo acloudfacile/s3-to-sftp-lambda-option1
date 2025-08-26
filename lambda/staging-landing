@@ -1,0 +1,35 @@
+import boto3, time
+
+s3 = boto3.client("s3")
+
+BUCKET = "<your-bucket>"
+SRC = "staging/iota.dat"
+DST = "aig-iota-landing-folder/iota.dat"
+
+# 1) Get source size (for verification)
+src_head = s3.head_object(Bucket=BUCKET, Key=SRC)
+src_size = src_head["ContentLength"]
+
+# 2) Copy to landing (this will trigger your Lambda)
+s3.copy_object(
+    Bucket=BUCKET,
+    CopySource={"Bucket": BUCKET, "Key": SRC},
+    Key=DST
+)
+
+# 3) Wait until the destination is visible and the size matches
+for _ in range(30):  # up to ~30s
+    try:
+        dst_head = s3.head_object(Bucket=BUCKET, Key=DST)
+        if dst_head.get("ContentLength", -1) == src_size:
+            break
+    except s3.exceptions.NoSuchKey:
+        pass
+    time.sleep(1)
+else:
+    raise RuntimeError("Destination object not visible with expected size—abort delete")
+
+# 4) Delete from staging so Lambda won’t merge
+s3.delete_object(Bucket=BUCKET, Key=SRC)
+
+print(f"MOVED: s3://{BUCKET}/{SRC} -> s3://{BUCKET}/{DST}")
